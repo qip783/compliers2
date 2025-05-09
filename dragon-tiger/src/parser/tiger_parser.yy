@@ -81,6 +81,7 @@ using utils::nl;
 
 %token <Symbol> ID "id"
 %token <Symbol> STRING "string"
+%token <int> INT "integer"
 
 // Declare the nonterminals types
 
@@ -96,6 +97,9 @@ using utils::nl;
 %type <std::vector<Expr *>> arguments nonemptyarguments;
 
 %type <Expr *> program;
+%type <Expr *> intExpr;
+
+%type <Expr *> ifExpr;
 
 %type <boost::optional<Symbol>> typeannotation;
 
@@ -104,6 +108,10 @@ using utils::nl;
 // Declare precedence rules
 
 %nonassoc FUNCTION VAR TYPE DO OF ASSIGN;
+
+%left PLUS MINUS;
+%left TIMES DIVIDE;
+
 %left UMINUS;
 
 // Declare grammar rules and production actions
@@ -112,6 +120,20 @@ using utils::nl;
 
 program: expr { driver.result_ast = $1; }
 ;
+
+intExpr: INT {$$ = new ast::types::IntegerLiteral(@1, $1); };
+
+
+ifExpr: IF expr THEN expr ELSE expr
+	{
+	    $$ = new ast::types::IfThenElse(@1, $2, $4, $6)
+	};
+
+ifExpr: IF expr THEN expr
+	{
+	    $$ = new ast::types::IfThenElse(@1. $2, $4, new ast::types::Sequence(nl, std::vector<Expr*()));
+	};
+
 
 decl: varDecl { $$ = $1; }
    | funcDecl { $$ = $1; }
@@ -128,6 +150,8 @@ expr: stringExpr { $$ = $1; }
    | forExpr { $$ = $1; }
    | breakExpr { $$ = $1; }
    | letExpr { $$ = $1; }
+   | intExpr {$$ =$1; }
+   | ifExpr {$$ = $1; }
 ;
 
 varDecl: VAR ID typeannotation ASSIGN expr
@@ -174,8 +198,17 @@ opExpr: expr PLUS expr   { $$ = new BinaryOperator(@2, $1, $3, o_plus); }
                             new IfThenElse(@3, $3, new IntegerLiteral(nl, 1), new IntegerLiteral(nl, 0)),
                             new IntegerLiteral(nl, 0));
       }
-;
-
+      | expr OR expr	{
+	$$ = new IfThenElse(@2,
+			    $1,
+			    new IntegerLiteral(nl, 1),
+			    new IfThenElse(@3,
+					   $3,
+					    new IntegerLiteral(nl, 1),
+					    new IntegerLiteral(nl, 0)
+					   )
+			    );
+      }
 
 assignExpr: ID ASSIGN expr
   { $$ = new Assign(@2, new Identifier(@1, $1), $3); }
